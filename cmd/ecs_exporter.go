@@ -258,7 +258,7 @@ func main() {
             <body>
             <h1>Cluster Exporter</h1>
             <form action="/query">
-            <label>Target:</label> <input type="text" name="target" placeholder="X.X.X.X" value="1.2.3.4"><br>
+            <label>Target:</label> <input type="text" name="target" placeholder="X.X.X.X" value=""><br>
             <input type="submit" value="Submit">
             </form>
             </html>`))

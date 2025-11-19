@@ -21,9 +21,10 @@ This exporter collects performance and metrics stats from Dell EMC ECS clusters 
 
 The following ports need to be open between the ECS array and the exporter:
 
-* 9101
-* 9021
-* 4443
+* **4443** - Management API (Dashboard API, authentication, cluster info)
+* **9021** - Object API (active connections monitoring)
+
+**Note for ObjectScale 4.1+**: Port 9101 (DT Stats API) is no longer used. All node statistics are now retrieved via the Dashboard API on port 4443.
 
 ### Running the Exporter
 

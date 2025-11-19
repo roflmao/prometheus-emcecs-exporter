@@ -24,6 +24,7 @@ type EcsClient struct {
 	ClusterAddress string
 	nodeListMgmtIP []string
 	nodeListDataIP []string
+	nodeListID     []string
 	EcsVersion     string
 	ErrorCount     int64
 	Config         *ecsconfig.Config
@@ -31,11 +32,30 @@ type EcsClient struct {
 }
 
 type NodeState struct {
-	TotalDTnum        float64 `xml:"entry>total_dt_num"`
-	UnreadyDTnum      float64 `xml:"entry>unready_dt_num"`
-	UnknownDTnum      float64 `xml:"entry>unknown_dt_num"`
 	NodeIP            string
-	ActiveConnections float64 `xml:"entry>load_factor"`
+	NodeID            string
+	// Disk metrics
+	NumDisks              float64
+	NumGoodDisks          float64
+	NumBadDisks           float64
+	// Storage metrics (most recent values)
+	DiskSpaceTotal        float64
+	DiskSpaceFree         float64
+	DiskSpaceAllocated    float64
+	// System resource metrics (most recent values)
+	CPUUtilization        float64
+	MemoryUtilization     float64
+	MemoryUtilizationBytes float64
+	// Network metrics (most recent values)
+	NicBandwidth          float64
+	NicUtilization        float64
+	// Transaction metrics (most recent values)
+	TransactionReadLatency  float64
+	TransactionWriteLatency float64
+	TransactionReadBandwidth float64
+	TransactionWriteBandwidth float64
+	// Active connections from port 9021
+	ActiveConnections     float64
 }
 
 type pingList struct {
@@ -312,58 +332,133 @@ func (c *EcsClient) RetrieveNodeInfoV2() {
 		return
 	}
 
-	// We need to zero out the current nodeListDataIP and nodeListMgmtIP
+	// We need to zero out the current node lists
 	// since we use append to build it back up ... if we dont this list just keeps growing
 	c.nodeListDataIP = nil
 	c.nodeListMgmtIP = nil
+	c.nodeListID = nil
 
 	resultData := gjson.Get(s, "node.#.data_ip")
 	for _, ip := range resultData.Array() {
-		// for
 		c.nodeListDataIP = append(c.nodeListDataIP, ip.String())
 	}
 	resultMgmt := gjson.Get(s, "node.#.mgmt_ip")
 	for _, ip := range resultMgmt.Array() {
-		// for
 		c.nodeListMgmtIP = append(c.nodeListMgmtIP, ip.String())
+	}
+	resultID := gjson.Get(s, "node.#.nodeid")
+	for _, id := range resultID.Array() {
+		c.nodeListID = append(c.nodeListID, id.String())
 	}
 
 	c.EcsVersion = gjson.Get(s, "node.0.version").String()
 
 }
 
-func (c *EcsClient) retrieveNodeState(node string, ch chan<- NodeState) {
+func (c *EcsClient) retrieveNodeState(nodeID string, nodeIP string, ch chan<- NodeState) {
 	parsedOutput := &NodeState{}
 	parsedPing := &pingList{}
-	parsedOutput.NodeIP = node
+	parsedOutput.NodeIP = nodeIP
+	parsedOutput.NodeID = nodeID
 
-	log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("this is the node I am querying ", node)
-	reqStatusURL := "http://" + node + ":9101/stats/dt/DTInitStat"
-	log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("URL we are checking is ", reqStatusURL)
+	log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress, "node": nodeID}).Debug("Querying node via Dashboard API")
 
-	resp, err := c.httpClient.Get(reqStatusURL)
+	// Use Dashboard API instead of port 9101
+	reqStatusURL := "https://" + c.ClusterAddress + ":" + strconv.Itoa(c.Config.ECS.MgmtPort) + "/dashboard/nodes/" + nodeID
+	log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("Dashboard API URL: ", reqStatusURL)
+
+	nodeData, err := c.CallECSAPI(reqStatusURL)
 	if err != nil {
-		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Error("Error connecting to ECS Cluster at: " + reqStatusURL)
-		atomic.AddInt64(&c.ErrorCount, 1)
-		ch <- *parsedOutput
-		return
-	}
-	defer resp.Body.Close()
-
-	bytes, _ := ioutil.ReadAll(resp.Body)
-	err = xml.Unmarshal(bytes, parsedOutput)
-	if err != nil {
-		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Error("Error un-marshaling XML from: " + reqStatusURL)
-		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Error(err)
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Error("Error getting node data from Dashboard API: ", err)
 		atomic.AddInt64(&c.ErrorCount, 1)
 		ch <- *parsedOutput
 		return
 	}
 
-	// ECS supplies the current number of active connections, but its per node
-	// and its part of the s3 retrieval api (ie port 9021) so lets get this and pass it along as well
-	// and its in yet another format ... or at least xml layed out differently, so more processing is needed
-	reqConnectionsURL := "https://" + node + ":" + strconv.Itoa(c.Config.ECS.ObjPort) + "/?ping"
+	// Parse disk metrics
+	parsedOutput.NumDisks = gjson.Get(nodeData, "numDisks").Float()
+	parsedOutput.NumGoodDisks = gjson.Get(nodeData, "numGoodDisks").Float()
+	parsedOutput.NumBadDisks = gjson.Get(nodeData, "numBadDisks").Float()
+
+	// Parse storage metrics - get most recent value from time series
+	diskSpaceTotalArray := gjson.Get(nodeData, "diskSpaceTotal")
+	if diskSpaceTotalArray.IsArray() && len(diskSpaceTotalArray.Array()) > 0 {
+		lastEntry := diskSpaceTotalArray.Array()[len(diskSpaceTotalArray.Array())-1]
+		parsedOutput.DiskSpaceTotal = gjson.Get(lastEntry.String(), "Space").Float()
+	}
+
+	diskSpaceFreeArray := gjson.Get(nodeData, "diskSpaceFree")
+	if diskSpaceFreeArray.IsArray() && len(diskSpaceFreeArray.Array()) > 0 {
+		lastEntry := diskSpaceFreeArray.Array()[len(diskSpaceFreeArray.Array())-1]
+		parsedOutput.DiskSpaceFree = gjson.Get(lastEntry.String(), "Space").Float()
+	}
+
+	diskSpaceAllocatedArray := gjson.Get(nodeData, "diskSpaceAllocated")
+	if diskSpaceAllocatedArray.IsArray() && len(diskSpaceAllocatedArray.Array()) > 0 {
+		lastEntry := diskSpaceAllocatedArray.Array()[len(diskSpaceAllocatedArray.Array())-1]
+		parsedOutput.DiskSpaceAllocated = gjson.Get(lastEntry.String(), "Space").Float()
+	}
+
+	// Parse CPU utilization
+	cpuArray := gjson.Get(nodeData, "nodeCpuUtilization")
+	if cpuArray.IsArray() && len(cpuArray.Array()) > 0 {
+		lastEntry := cpuArray.Array()[len(cpuArray.Array())-1]
+		parsedOutput.CPUUtilization = gjson.Get(lastEntry.String(), "Percent").Float()
+	}
+
+	// Parse memory utilization
+	memArray := gjson.Get(nodeData, "nodeMemoryUtilization")
+	if memArray.IsArray() && len(memArray.Array()) > 0 {
+		lastEntry := memArray.Array()[len(memArray.Array())-1]
+		parsedOutput.MemoryUtilization = gjson.Get(lastEntry.String(), "Percent").Float()
+	}
+
+	memBytesArray := gjson.Get(nodeData, "nodeMemoryUtilizationBytes")
+	if memBytesArray.IsArray() && len(memBytesArray.Array()) > 0 {
+		lastEntry := memBytesArray.Array()[len(memBytesArray.Array())-1]
+		parsedOutput.MemoryUtilizationBytes = gjson.Get(lastEntry.String(), "Bytes").Float()
+	}
+
+	// Parse network metrics
+	nicBandwidthArray := gjson.Get(nodeData, "nodeNicBandwidth")
+	if nicBandwidthArray.IsArray() && len(nicBandwidthArray.Array()) > 0 {
+		lastEntry := nicBandwidthArray.Array()[len(nicBandwidthArray.Array())-1]
+		parsedOutput.NicBandwidth = gjson.Get(lastEntry.String(), "Bandwidth").Float()
+	}
+
+	nicUtilArray := gjson.Get(nodeData, "nodeNicUtilization")
+	if nicUtilArray.IsArray() && len(nicUtilArray.Array()) > 0 {
+		lastEntry := nicUtilArray.Array()[len(nicUtilArray.Array())-1]
+		parsedOutput.NicUtilization = gjson.Get(lastEntry.String(), "Percent").Float()
+	}
+
+	// Parse transaction metrics
+	readLatencyArray := gjson.Get(nodeData, "transactionReadLatency")
+	if readLatencyArray.IsArray() && len(readLatencyArray.Array()) > 0 {
+		lastEntry := readLatencyArray.Array()[len(readLatencyArray.Array())-1]
+		parsedOutput.TransactionReadLatency = gjson.Get(lastEntry.String(), "Latency").Float()
+	}
+
+	writeLatencyArray := gjson.Get(nodeData, "transactionWriteLatency")
+	if writeLatencyArray.IsArray() && len(writeLatencyArray.Array()) > 0 {
+		lastEntry := writeLatencyArray.Array()[len(writeLatencyArray.Array())-1]
+		parsedOutput.TransactionWriteLatency = gjson.Get(lastEntry.String(), "Latency").Float()
+	}
+
+	readBandwidthArray := gjson.Get(nodeData, "transactionReadBandwidth")
+	if readBandwidthArray.IsArray() && len(readBandwidthArray.Array()) > 0 {
+		lastEntry := readBandwidthArray.Array()[len(readBandwidthArray.Array())-1]
+		parsedOutput.TransactionReadBandwidth = gjson.Get(lastEntry.String(), "Bandwidth").Float()
+	}
+
+	writeBandwidthArray := gjson.Get(nodeData, "transactionWriteBandwidth")
+	if writeBandwidthArray.IsArray() && len(writeBandwidthArray.Array()) > 0 {
+		lastEntry := writeBandwidthArray.Array()[len(writeBandwidthArray.Array())-1]
+		parsedOutput.TransactionWriteBandwidth = gjson.Get(lastEntry.String(), "Bandwidth").Float()
+	}
+
+	// Get active connections from port 9021 (still valid)
+	reqConnectionsURL := "https://" + nodeIP + ":" + strconv.Itoa(c.Config.ECS.ObjPort) + "/?ping"
 	log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("URL we are checking for connections is ", reqConnectionsURL)
 
 	respConn, err := c.httpClient.Get(reqConnectionsURL)
@@ -390,17 +485,18 @@ func (c *EcsClient) retrieveNodeState(node string, ch chan<- NodeState) {
 	ch <- *parsedOutput
 }
 
-// RetrieveNodeStateParallel pulls all the dtstate from nodes in the cluster all at once
+// RetrieveNodeStateParallel pulls all node stats from the Dashboard API in parallel
 func (c *EcsClient) RetrieveNodeStateParallel() []NodeState {
 	var NodeStates []NodeState
 
 	ch := make(chan NodeState)
 
-	for _, node := range c.nodeListMgmtIP {
-		go c.retrieveNodeState(node, ch)
+	// Query Dashboard API for each node using node ID
+	for i := range c.nodeListID {
+		go c.retrieveNodeState(c.nodeListID[i], c.nodeListMgmtIP[i], ch)
 	}
 
-	for range c.nodeListMgmtIP {
+	for range c.nodeListID {
 		NodeStates = append(NodeStates, <-ch)
 	}
 	return NodeStates
