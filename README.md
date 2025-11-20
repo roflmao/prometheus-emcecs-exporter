@@ -184,6 +184,8 @@ The following items are presented on the /metrics endpoint which gives the prome
 
 This exporter can run on any go supported platform. As of version 1.2 we have moved to using Go 1.11 and higher. Testing is done with Go 1.12 but go 1.11 should work for anyone using it.
 
+### Building from Source
+
 To install from source:
 `go install github.com/paychex/prometheus-emcecs-exporter`
 This will place a freshly built binary in your $GOPATH/bin directory.
@@ -194,6 +196,39 @@ $ git clone github.com/paychex/prometheus-emcecs-exporter
 $ cd prometheus-emcecs-exporter
 $ go build
 ```
+
+### Building Docker Image
+
+Build the Docker image:
+```bash
+$ docker build -t prometheus-emcecs-exporter:latest .
+```
+
+Run the container:
+```bash
+$ docker run -d --name ecs-exporter \
+  -p 9438:9438 \
+  -e ECSENV_USERNAME=<your-username> \
+  -e ECSENV_PASSWORD=<your-password> \
+  prometheus-emcecs-exporter:latest
+```
+
+Run with debug logging:
+```bash
+$ docker run -d --name ecs-exporter \
+  -p 9438:9438 \
+  -e ECSENV_DEBUG=true \
+  -e ECSENV_USERNAME=<your-username> \
+  -e ECSENV_PASSWORD=<your-password> \
+  prometheus-emcecs-exporter:latest
+```
+
+View logs:
+```bash
+$ docker logs -f ecs-exporter
+```
+
+The Docker image is built using a multi-stage build process resulting in a minimal (~8MB) final image based on scratch.
 
 ## Refrences
 
