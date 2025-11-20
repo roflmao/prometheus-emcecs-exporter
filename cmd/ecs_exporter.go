@@ -155,13 +155,21 @@ func queryHandler(w http.ResponseWriter, r *http.Request) {
 	ecsClusterInfo.WithLabelValues(c.EcsVersion, strconv.Itoa(c.RetrieveNodeCount())).Set(1)
 
 	if r.URL.Query().Get("metering") == "1" {
-		// get just metering information
+		// get namespace metering information
 		meterExporter, err := collector.NewEcsMeteringCollector(c, namespace)
 		if err != nil {
 			log.WithFields(log.Fields{"package": "main"}).Errorf("Can't create exporter : %s", err)
 		}
-		log.WithFields(log.Fields{"package": "main"}).Debug("Register Metering exporter")
+		log.WithFields(log.Fields{"package": "main"}).Debug("Register Namespace Metering exporter")
 		registry.MustRegister(meterExporter)
+	} else if r.URL.Query().Get("bucket_metering") == "1" {
+		// get bucket metering information
+		bucketMeterExporter, err := collector.NewEcsBucketMeteringCollector(c, namespace)
+		if err != nil {
+			log.WithFields(log.Fields{"package": "main"}).Errorf("Can't create bucket metering exporter : %s", err)
+		}
+		log.WithFields(log.Fields{"package": "main"}).Debug("Register Bucket Metering exporter")
+		registry.MustRegister(bucketMeterExporter)
 	} else {
 		// get perf metrics
 		// nodeexporter

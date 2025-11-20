@@ -18,14 +18,14 @@ type EcsMeteringCollector struct {
 
 var (
 	nameSpaceQuota = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "metering", "namespacequota"),
+		prometheus.BuildFQName("emcecs", "metering_namespace", "quota"),
 		"quota information for namespace in KB",
-		[]string{"ecsnamespace", "type"}, nil,
+		[]string{"namespace", "type"}, nil,
 	)
 	nameSpaceObjectTotal = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "metering", "namespace_object_count"),
+		prometheus.BuildFQName("emcecs", "metering_namespace", "object_count"),
 		"total count of objects in namespace",
-		[]string{"ecsnamespace"}, nil,
+		[]string{"namespace"}, nil,
 	)
 )
 

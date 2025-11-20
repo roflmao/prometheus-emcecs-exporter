@@ -71,12 +71,28 @@ scrape_configs:
   - job_name: 'emcecs-exporter-stats' # gathers the exporter application process stats if you want this sort of information
     static_configs:
       - targets: 127.0.0.1:9438
-  # this monitors emc ecs clusters for quota usage.  only have to do it every so often, and only need to query the cluster itself
-  - job_name: 'ecs_quota'
+  # this monitors emc ecs clusters for namespace quota usage
+  - job_name: 'ecs_namespace_quota'
     scrape_interval:    300s
     scrape_timeout:     60s
     params:
       metering: ["1"]
+    metrics_path: /query
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 127.0.0.1:9438  # ECS exporter.
+    static_configs:
+      - targets: ['myecsarray-1.example.net','myecsarray-2.example.net']
+  # this monitors bucket-level usage across all namespaces
+  - job_name: 'ecs_bucket_usage'
+    scrape_interval:    600s
+    scrape_timeout:     120s
+    params:
+      bucket_metering: ["1"]
     metrics_path: /query
     relabel_configs:
       - source_labels: [__address__]
@@ -107,24 +123,40 @@ Returns cluster-level and node-level performance metrics including:
 
 **Scrape frequency**: Every 30-60 seconds recommended
 
-### Metering Metrics (Requires `metering=1` parameter)
+### Namespace Metering Metrics (Requires `metering=1` parameter)
 **URL**: `http://exporter:9438/query?target=<ecs-cluster-address>&metering=1`
 
 Returns namespace-level quota and usage metrics:
 - Namespace object counts
 - Namespace storage quota (block, notification, used)
 
-**Important**: The `metering=1` parameter **must** be added to the query URL to retrieve metering metrics. Without this parameter, only standard performance metrics are returned.
+**Important**: The `metering=1` parameter **must** be added to the query URL to retrieve namespace metering metrics.
 
 **Scrape frequency**: Every 5+ minutes recommended (slower polling due to API performance impact)
+
+### Bucket Metering Metrics (Requires `bucket_metering=1` parameter)
+**URL**: `http://exporter:9438/query?target=<ecs-cluster-address>&bucket_metering=1`
+
+Returns bucket-level usage metrics for all buckets across all namespaces:
+- Bucket object counts
+- Bucket storage size in bytes
+- Bucket ingress bytes (total uploaded)
+- Bucket egress bytes (total downloaded)
+
+**Important**: The `bucket_metering=1` parameter **must** be added to the query URL to retrieve bucket metering metrics.
+
+**Scrape frequency**: Every 5-15+ minutes recommended (can be slower than namespace metering due to higher API load)
 
 **Example queries**:
 ```bash
 # Standard metrics only
 curl "http://localhost:9438/query?target=10.2.230.10"
 
-# Metering metrics only
+# Namespace metering metrics only
 curl "http://localhost:9438/query?target=10.2.230.10&metering=1"
+
+# Bucket metering metrics only
+curl "http://localhost:9438/query?target=10.2.230.10&bucket_metering=1"
 ```
 
 ### Dell EMC ECS Performance Stats
@@ -214,13 +246,26 @@ curl "http://localhost:9438/query?target=10.2.230.10&metering=1"
 
 **Note**: ObjectScale 4.1 Dashboard API does not provide CPU, memory, network, or transaction metrics at the node level. See [ObjectScale 4.1 Changes](docs/OBJECTSCALE_4.1_CHANGES.md) for migration details.
 
-### Dell EMC ECS Metering
+### Dell EMC ECS Namespace Metering
 
 ````
 # HELP emcecs_metering_namespace_object_count total count of objects in namespace
 # TYPE emcecs_metering_namespace_object_count gauge
-# HELP emcecs_metering_namespacequota quota information for namespace in KB
-# TYPE emcecs_metering_namespacequota gauge
+# HELP emcecs_metering_namespace_quota quota information for namespace in KB
+# TYPE emcecs_metering_namespace_quota gauge
+````
+
+### Dell EMC ECS Bucket Metering
+
+````
+# HELP emcecs_metering_bucket_object_count total count of objects in bucket
+# TYPE emcecs_metering_bucket_object_count gauge
+# HELP emcecs_metering_bucket_size_bytes total size of bucket in bytes
+# TYPE emcecs_metering_bucket_size_bytes gauge
+# HELP emcecs_metering_bucket_ingress_bytes_total total ingress bytes for bucket
+# TYPE emcecs_metering_bucket_ingress_bytes_total counter
+# HELP emcecs_metering_bucket_egress_bytes_total total egress bytes for bucket
+# TYPE emcecs_metering_bucket_egress_bytes_total counter
 ````
 
 ### ECS Exporter Application Stats

@@ -222,6 +222,43 @@ func (c *EcsClient) CallECSAPI(request string) (response string, err error) {
 
 }
 
+// CallECSAPIPost performs a POST request to the ECS API with JSON body
+func (c *EcsClient) CallECSAPIPost(request string, jsonBody string) (response string, err error) {
+	req, _ := http.NewRequest("POST", request, strings.NewReader(jsonBody))
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("X-SDS-AUTH-TOKEN", c.authToken)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Infof("\n - Error connecting to ECS: %s", err)
+		return "", fmt.Errorf("error connecting to : %v. the error was: %v", request, err)
+	}
+	defer resp.Body.Close()
+	respText, err := ioutil.ReadAll(resp.Body)
+	s := string(respText)
+
+	switch resp.StatusCode {
+	case 401:
+		// this just means we need to re-login so we will log in and then re-make the call
+		// invalidate the authToken
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("Got a 401 from ECS. Invalidating apiToken")
+		c.authToken = ""
+		err = c.Login()
+		if err != nil {
+			log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Infof("Got error code: %v when accessing URL: %s\n Body text is: %s\n", resp.StatusCode, request, respText)
+			return "", fmt.Errorf("error connecting to : %v. the error was: %v", request, resp.StatusCode)
+		}
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("Should be all logged back in. Recursively re-calling API")
+		return c.CallECSAPIPost(request, jsonBody)
+	case 200:
+		return s, nil
+	default:
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Infof("Got error code: %v when accessing URL: %s\n Body text is: %s\n", resp.StatusCode, request, respText)
+		return "", fmt.Errorf("error connecting to : %v. the error was: %v", request, resp.StatusCode)
+	}
+
+}
+
 // RetrieveReplState will return a struct containing the state of the ECS cluster on query
 func (c *EcsClient) RetrieveReplState() (EcsReplState, error) {
 	// this will only pull the current stats, which is what we want for this application
