@@ -243,6 +243,28 @@ func (c *EcsClient) RetrieveReplState() (EcsReplState, error) {
 	}, nil
 }
 
+// RetrieveObjectCapacity retrieves usable object storage capacity (after EC/replication overhead)
+func (c *EcsClient) RetrieveObjectCapacity() (float64, float64, error) {
+	reqURL := "https://" + c.ClusterAddress + ":" + strconv.Itoa(c.Config.ECS.MgmtPort) + "/object/capacity"
+
+	s, err := c.CallECSAPI(reqURL)
+	if err != nil {
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("Error retrieving object capacity: ", err)
+		return 0, 0, err
+	}
+
+	// API returns values in GB, convert to bytes for consistency
+	totalProvisionedGB := gjson.Get(s, "totalProvisioned_gb").Float()
+	totalFreeGB := gjson.Get(s, "totalFree_gb").Float()
+
+	totalProvisionedBytes := totalProvisionedGB * 1024 * 1024 * 1024
+	totalFreeBytes := totalFreeGB * 1024 * 1024 * 1024
+
+	log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("Object capacity - Total: ", totalProvisionedBytes, " Free: ", totalFreeBytes)
+
+	return totalProvisionedBytes, totalFreeBytes, nil
+}
+
 // RetrieveClusterState will return a struct containing the state of the ECS cluster on query
 func (c *EcsClient) RetrieveClusterState() (EcsClusterState, error) {
 
@@ -297,6 +319,15 @@ func (c *EcsClient) RetrieveClusterState() (EcsClusterState, error) {
 		fields.TransactionErrors = append(fields.TransactionErrors, transactionerror)
 		return true
 	})
+
+	// Retrieve object storage capacity (usable capacity after EC/replication overhead)
+	objCapTotal, objCapFree, err := c.RetrieveObjectCapacity()
+	if err == nil {
+		fields.ObjectCapacityTotal = objCapTotal
+		fields.ObjectCapacityFree = objCapFree
+	} else {
+		log.WithFields(log.Fields{"package": "ecsclient", "cluster": c.ClusterAddress}).Debug("Object capacity not available, continuing without it")
+	}
 
 	return fields, nil
 

@@ -23,6 +23,9 @@ type EcsClusterState struct {
 	TransactionWriteBandwidthCurrent      float64
 	TransactionReadBandwidthCurrent       float64
 	TransactionErrors                     []EcsTransactionError
+	// Object storage capacity (usable after EC/replication overhead)
+	ObjectCapacityTotal                   float64
+	ObjectCapacityFree                    float64
 }
 
 type EcsReplState struct {
