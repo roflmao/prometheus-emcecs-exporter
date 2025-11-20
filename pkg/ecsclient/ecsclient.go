@@ -38,24 +38,13 @@ type NodeState struct {
 	NumDisks              float64
 	NumGoodDisks          float64
 	NumBadDisks           float64
-	// Storage metrics (most recent values)
+	// Storage metrics (most recent values from Dashboard API)
 	DiskSpaceTotal        float64
 	DiskSpaceFree         float64
 	DiskSpaceAllocated    float64
-	// System resource metrics (most recent values)
-	CPUUtilization        float64
-	MemoryUtilization     float64
-	MemoryUtilizationBytes float64
-	// Network metrics (most recent values)
-	NicBandwidth          float64
-	NicUtilization        float64
-	// Transaction metrics (most recent values)
-	TransactionReadLatency  float64
-	TransactionWriteLatency float64
-	TransactionReadBandwidth float64
-	TransactionWriteBandwidth float64
 	// Active connections from port 9021
 	ActiveConnections     float64
+	// NOTE: ObjectScale 4.1 Dashboard API does not provide CPU, memory, network, or transaction metrics
 }
 
 type pingList struct {
@@ -355,6 +344,13 @@ func (c *EcsClient) RetrieveNodeInfoV2() {
 
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (c *EcsClient) retrieveNodeState(nodeID string, nodeIP string, ch chan<- NodeState) {
 	parsedOutput := &NodeState{}
 	parsedPing := &pingList{}
@@ -399,63 +395,9 @@ func (c *EcsClient) retrieveNodeState(nodeID string, nodeIP string, ch chan<- No
 		parsedOutput.DiskSpaceAllocated = gjson.Get(lastEntry.String(), "Space").Float()
 	}
 
-	// Parse CPU utilization
-	cpuArray := gjson.Get(nodeData, "nodeCpuUtilization")
-	if cpuArray.IsArray() && len(cpuArray.Array()) > 0 {
-		lastEntry := cpuArray.Array()[len(cpuArray.Array())-1]
-		parsedOutput.CPUUtilization = gjson.Get(lastEntry.String(), "Percent").Float()
-	}
-
-	// Parse memory utilization
-	memArray := gjson.Get(nodeData, "nodeMemoryUtilization")
-	if memArray.IsArray() && len(memArray.Array()) > 0 {
-		lastEntry := memArray.Array()[len(memArray.Array())-1]
-		parsedOutput.MemoryUtilization = gjson.Get(lastEntry.String(), "Percent").Float()
-	}
-
-	memBytesArray := gjson.Get(nodeData, "nodeMemoryUtilizationBytes")
-	if memBytesArray.IsArray() && len(memBytesArray.Array()) > 0 {
-		lastEntry := memBytesArray.Array()[len(memBytesArray.Array())-1]
-		parsedOutput.MemoryUtilizationBytes = gjson.Get(lastEntry.String(), "Bytes").Float()
-	}
-
-	// Parse network metrics
-	nicBandwidthArray := gjson.Get(nodeData, "nodeNicBandwidth")
-	if nicBandwidthArray.IsArray() && len(nicBandwidthArray.Array()) > 0 {
-		lastEntry := nicBandwidthArray.Array()[len(nicBandwidthArray.Array())-1]
-		parsedOutput.NicBandwidth = gjson.Get(lastEntry.String(), "Bandwidth").Float()
-	}
-
-	nicUtilArray := gjson.Get(nodeData, "nodeNicUtilization")
-	if nicUtilArray.IsArray() && len(nicUtilArray.Array()) > 0 {
-		lastEntry := nicUtilArray.Array()[len(nicUtilArray.Array())-1]
-		parsedOutput.NicUtilization = gjson.Get(lastEntry.String(), "Percent").Float()
-	}
-
-	// Parse transaction metrics
-	readLatencyArray := gjson.Get(nodeData, "transactionReadLatency")
-	if readLatencyArray.IsArray() && len(readLatencyArray.Array()) > 0 {
-		lastEntry := readLatencyArray.Array()[len(readLatencyArray.Array())-1]
-		parsedOutput.TransactionReadLatency = gjson.Get(lastEntry.String(), "Latency").Float()
-	}
-
-	writeLatencyArray := gjson.Get(nodeData, "transactionWriteLatency")
-	if writeLatencyArray.IsArray() && len(writeLatencyArray.Array()) > 0 {
-		lastEntry := writeLatencyArray.Array()[len(writeLatencyArray.Array())-1]
-		parsedOutput.TransactionWriteLatency = gjson.Get(lastEntry.String(), "Latency").Float()
-	}
-
-	readBandwidthArray := gjson.Get(nodeData, "transactionReadBandwidth")
-	if readBandwidthArray.IsArray() && len(readBandwidthArray.Array()) > 0 {
-		lastEntry := readBandwidthArray.Array()[len(readBandwidthArray.Array())-1]
-		parsedOutput.TransactionReadBandwidth = gjson.Get(lastEntry.String(), "Bandwidth").Float()
-	}
-
-	writeBandwidthArray := gjson.Get(nodeData, "transactionWriteBandwidth")
-	if writeBandwidthArray.IsArray() && len(writeBandwidthArray.Array()) > 0 {
-		lastEntry := writeBandwidthArray.Array()[len(writeBandwidthArray.Array())-1]
-		parsedOutput.TransactionWriteBandwidth = gjson.Get(lastEntry.String(), "Bandwidth").Float()
-	}
+	// NOTE: ObjectScale 4.1 Dashboard API does not provide CPU, memory, network, or transaction metrics
+	// These fields are not available in the /dashboard/nodes/{node-id} endpoint
+	// Only disk-related metrics are available from this API
 
 	// Get active connections from port 9021 (still valid)
 	reqConnectionsURL := "https://" + nodeIP + ":" + strconv.Itoa(c.Config.ECS.ObjPort) + "/?ping"

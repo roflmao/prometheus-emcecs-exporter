@@ -45,60 +45,13 @@ var (
 		"Allocated disk space on node in bytes",
 		[]string{"node"}, nil,
 	)
-	// System resource metrics
-	cpuUtilization = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "cpu_utilization_percent"),
-		"CPU utilization on node in percent",
-		[]string{"node"}, nil,
-	)
-	memoryUtilization = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "memory_utilization_percent"),
-		"Memory utilization on node in percent",
-		[]string{"node"}, nil,
-	)
-	memoryUtilizationBytes = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "memory_utilization_bytes"),
-		"Memory utilization on node in bytes",
-		[]string{"node"}, nil,
-	)
-	// Network metrics
-	nicBandwidth = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "nic_bandwidth_bytes_per_sec"),
-		"Network interface bandwidth on node in bytes per second",
-		[]string{"node"}, nil,
-	)
-	nicUtilization = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "nic_utilization_percent"),
-		"Network interface utilization on node in percent",
-		[]string{"node"}, nil,
-	)
-	// Transaction metrics
-	transactionReadLatency = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "transaction_read_latency_ms"),
-		"Transaction read latency on node in milliseconds",
-		[]string{"node"}, nil,
-	)
-	transactionWriteLatency = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "transaction_write_latency_ms"),
-		"Transaction write latency on node in milliseconds",
-		[]string{"node"}, nil,
-	)
-	transactionReadBandwidth = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "transaction_read_bandwidth_bytes_per_sec"),
-		"Transaction read bandwidth on node in bytes per second",
-		[]string{"node"}, nil,
-	)
-	transactionWriteBandwidth = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "transaction_write_bandwidth_bytes_per_sec"),
-		"Transaction write bandwidth on node in bytes per second",
-		[]string{"node"}, nil,
-	)
 	// Active connections
 	activeConnections = prometheus.NewDesc(
 		prometheus.BuildFQName("emcecs", "node", "active_connections"),
 		"Number of current active connections on node",
 		[]string{"node"}, nil,
 	)
+	// NOTE: ObjectScale 4.1 Dashboard API does not provide CPU, memory, network, or transaction metrics
 )
 
 // NewEcsNodeDTCollector returns an initialized Node DT Collector.
@@ -132,21 +85,6 @@ func (e *EcsNodeDTCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(diskSpaceFree, prometheus.GaugeValue, node.DiskSpaceFree, node.NodeIP)
 		ch <- prometheus.MustNewConstMetric(diskSpaceAllocated, prometheus.GaugeValue, node.DiskSpaceAllocated, node.NodeIP)
 
-		// System resource metrics
-		ch <- prometheus.MustNewConstMetric(cpuUtilization, prometheus.GaugeValue, node.CPUUtilization, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(memoryUtilization, prometheus.GaugeValue, node.MemoryUtilization, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(memoryUtilizationBytes, prometheus.GaugeValue, node.MemoryUtilizationBytes, node.NodeIP)
-
-		// Network metrics
-		ch <- prometheus.MustNewConstMetric(nicBandwidth, prometheus.GaugeValue, node.NicBandwidth, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(nicUtilization, prometheus.GaugeValue, node.NicUtilization, node.NodeIP)
-
-		// Transaction metrics
-		ch <- prometheus.MustNewConstMetric(transactionReadLatency, prometheus.GaugeValue, node.TransactionReadLatency, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(transactionWriteLatency, prometheus.GaugeValue, node.TransactionWriteLatency, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(transactionReadBandwidth, prometheus.GaugeValue, node.TransactionReadBandwidth, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(transactionWriteBandwidth, prometheus.GaugeValue, node.TransactionWriteBandwidth, node.NodeIP)
-
 		// Active connections
 		ch <- prometheus.MustNewConstMetric(activeConnections, prometheus.GaugeValue, node.ActiveConnections, node.NodeIP)
 	}
@@ -163,14 +101,5 @@ func (e *EcsNodeDTCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- diskSpaceTotal
 	ch <- diskSpaceFree
 	ch <- diskSpaceAllocated
-	ch <- cpuUtilization
-	ch <- memoryUtilization
-	ch <- memoryUtilizationBytes
-	ch <- nicBandwidth
-	ch <- nicUtilization
-	ch <- transactionReadLatency
-	ch <- transactionWriteLatency
-	ch <- transactionReadBandwidth
-	ch <- transactionWriteBandwidth
 	ch <- activeConnections
 }
