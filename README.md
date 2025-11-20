@@ -97,6 +97,8 @@ This exporter exports information in two ways. The first is a standard export of
 
 ### Dell EMC ECS Performance Stats
 
+#### Cluster Metrics
+
 ````
 # HELP emcecs_cluster_alerts_critical Number of current critical alerts for the cluster
 # TYPE emcecs_cluster_alerts_critical counter
@@ -110,26 +112,18 @@ This exporter exports information in two ways. The first is a standard export of
 # TYPE emcecs_cluster_bad_disks gauge
 # HELP emcecs_cluster_bad_nodes Current count of bad nodes in cluster
 # TYPE emcecs_cluster_bad_nodes gauge
-# HELP emcecs_cluster_chunks_pending_xor Number of chunks pending xor
-# TYPE emcecs_cluster_chunks_pending_xor gauge
-# HELP emcecs_cluster_data_replication_pending Data awaiting replication in bytes
-# TYPE emcecs_cluster_data_replication_pending gauge
 # HELP emcecs_cluster_good_disks Current count of good disks in cluster
 # TYPE emcecs_cluster_good_disks gauge
 # HELP emcecs_cluster_good_nodes Current count of good nodes in cluster
 # TYPE emcecs_cluster_good_nodes gauge
-# HELP emcecs_cluster_journal_replication_pending Journal data awaiting replication in bytes
-# TYPE emcecs_cluster_journal_replication_pending gauge
-# HELP emcecs_cluster_last_replication_timestamp Unix timestamp of last completed replication
-# TYPE emcecs_cluster_last_replication_timestamp counter
-# HELP emcecs_cluster_replication_egress_traffic Replication egress traffic in bytes/sec
-# TYPE emcecs_cluster_replication_egress_traffic gauge
-# HELP emcecs_cluster_replication_ingress_traffic Replication ingress traffic in bytes/sec
-# TYPE emcecs_cluster_replication_ingress_traffic gauge
-# HELP emcecs_cluster_space_free Cluster space free in Bytes
+# HELP emcecs_cluster_space_free Cluster raw disk space free in bytes (before EC/replication overhead)
 # TYPE emcecs_cluster_space_free gauge
-# HELP emcecs_cluster_space_total Cluster size in Bytes
+# HELP emcecs_cluster_space_total Cluster raw disk capacity in bytes (before EC/replication overhead)
 # TYPE emcecs_cluster_space_total gauge
+# HELP emcecs_cluster_object_capacity_total_bytes Usable object storage capacity in bytes (after EC/replication overhead)
+# TYPE emcecs_cluster_object_capacity_total_bytes gauge
+# HELP emcecs_cluster_object_capacity_free_bytes Free usable object storage capacity in bytes (after EC/replication overhead)
+# TYPE emcecs_cluster_object_capacity_free_bytes gauge
 # HELP emcecs_cluster_transaction_error Count of transaction errors
 # TYPE emcecs_cluster_transaction_error counter
 # HELP emcecs_cluster_transaction_error_detail error codes broken down by protocol category and error
@@ -148,15 +142,45 @@ This exporter exports information in two ways. The first is a standard export of
 # TYPE emcecs_cluster_transaction_write_latency gauge
 # HELP emcecs_cluster_transaction_write_per_second Cluster transactions write in transactions per second
 # TYPE emcecs_cluster_transaction_write_per_second gauge
-# HELP emcecs_node_activeConnections Number of current active connections on node
-# TYPE emcecs_node_activeConnections gauge
-# HELP emcecs_node_dtTotal Total number of DTs on node
-# TYPE emcecs_node_dtTotal gauge
-# HELP emcecs_node_dtUnknown Number of dt in unknown state on node
-# TYPE emcecs_node_dtUnknown gauge
-# HELP emcecs_node_dtUnready Number of dt in unready state on node
-# TYPE emcecs_node_dtUnready gauge
 ````
+
+#### Replication Metrics
+
+````
+# HELP emcecs_cluster_chunks_pending_xor Number of chunks pending xor
+# TYPE emcecs_cluster_chunks_pending_xor gauge
+# HELP emcecs_cluster_data_replication_pending Data awaiting replication in bytes
+# TYPE emcecs_cluster_data_replication_pending gauge
+# HELP emcecs_cluster_journal_replication_pending Journal data awaiting replication in bytes
+# TYPE emcecs_cluster_journal_replication_pending gauge
+# HELP emcecs_cluster_last_replication_timestamp Unix timestamp of last completed replication
+# TYPE emcecs_cluster_last_replication_timestamp counter
+# HELP emcecs_cluster_replication_egress_traffic Replication egress traffic in bytes/sec
+# TYPE emcecs_cluster_replication_egress_traffic gauge
+# HELP emcecs_cluster_replication_ingress_traffic Replication ingress traffic in bytes/sec
+# TYPE emcecs_cluster_replication_ingress_traffic gauge
+````
+
+#### Node Metrics (ObjectScale 4.1 / ECS 3.9+)
+
+````
+# HELP emcecs_node_disks_total Total number of disks on node
+# TYPE emcecs_node_disks_total gauge
+# HELP emcecs_node_disks_good Number of good disks on node
+# TYPE emcecs_node_disks_good gauge
+# HELP emcecs_node_disks_bad Number of bad disks on node
+# TYPE emcecs_node_disks_bad gauge
+# HELP emcecs_node_disk_space_total_bytes Total disk space on node in bytes
+# TYPE emcecs_node_disk_space_total_bytes gauge
+# HELP emcecs_node_disk_space_free_bytes Free disk space on node in bytes
+# TYPE emcecs_node_disk_space_free_bytes gauge
+# HELP emcecs_node_disk_space_allocated_bytes Allocated disk space on node in bytes
+# TYPE emcecs_node_disk_space_allocated_bytes gauge
+# HELP emcecs_node_active_connections Number of current active connections on node
+# TYPE emcecs_node_active_connections gauge
+````
+
+**Note**: ObjectScale 4.1 Dashboard API does not provide CPU, memory, network, or transaction metrics at the node level. See [ObjectScale 4.1 Changes](docs/OBJECTSCALE_4.1_CHANGES.md) for migration details.
 
 ### Dell EMC ECS Metering
 
