@@ -84,9 +84,9 @@ func (e *EcsBucketMeteringCollector) Collect(ch chan<- prometheus.Metric) {
 			defer func() { <-sem }()
 
 			// Retrieve bucket billing info for this namespace
-			// POST request with JSON body to get all buckets
-			bucketBillingReq := "https://" + e.ecsClient.ClusterAddress + ":4443/object/billing/buckets/" + ns + "/info"
-			jsonBody := `{"bucketName":"*","sizeunit":"GB"}`
+			// POST request with empty JSON body to get all buckets
+			bucketBillingReq := "https://" + e.ecsClient.ClusterAddress + ":4443/object/billing/buckets/" + ns + "/info?sizeunit=GB"
+			jsonBody := `{}`
 
 			n, err := e.ecsClient.CallECSAPIPost(bucketBillingReq, jsonBody)
 			if err != nil {
