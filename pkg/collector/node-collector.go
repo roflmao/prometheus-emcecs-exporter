@@ -13,26 +13,45 @@ type EcsNodeDTCollector struct {
 }
 
 var (
-	dtTotal = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "dtTotal"),
-		"Total number of DTs on node",
+	// Disk metrics
+	numDisks = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "node", "disks_total"),
+		"Total number of disks on node",
 		[]string{"node"}, nil,
 	)
-	dtUnready = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "dtUnready"),
-		"Number of dt in unready state on node",
+	numGoodDisks = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "node", "disks_good"),
+		"Number of good disks on node",
 		[]string{"node"}, nil,
 	)
-	dtUnknown = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "dtUnknown"),
-		"Number of dt in unknown state on node",
+	numBadDisks = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "node", "disks_bad"),
+		"Number of bad disks on node",
 		[]string{"node"}, nil,
 	)
+	// Storage metrics
+	diskSpaceTotal = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "node", "disk_space_total_bytes"),
+		"Total disk space on node in bytes",
+		[]string{"node"}, nil,
+	)
+	diskSpaceFree = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "node", "disk_space_free_bytes"),
+		"Free disk space on node in bytes",
+		[]string{"node"}, nil,
+	)
+	diskSpaceAllocated = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "node", "disk_space_allocated_bytes"),
+		"Allocated disk space on node in bytes",
+		[]string{"node"}, nil,
+	)
+	// Active connections
 	activeConnections = prometheus.NewDesc(
-		prometheus.BuildFQName("emcecs", "node", "activeConnections"),
+		prometheus.BuildFQName("emcecs", "node", "active_connections"),
 		"Number of current active connections on node",
 		[]string{"node"}, nil,
 	)
+	// NOTE: ObjectScale 4.1 Dashboard API does not provide CPU, memory, network, or transaction metrics
 )
 
 // NewEcsNodeDTCollector returns an initialized Node DT Collector.
@@ -48,7 +67,7 @@ func NewEcsNodeDTCollector(emcecs *ecsclient.EcsClient, namespace string) (*EcsN
 // Collect fetches the stats from configured nodes as Prometheus metrics.
 // It implements prometheus.Collector.
 func (e *EcsNodeDTCollector) Collect(ch chan<- prometheus.Metric) {
-	log.WithFields(log.Fields{"package": "node-collector"}).Debug("ECS Node DT collect starting")
+	log.WithFields(log.Fields{"package": "node-collector"}).Debug("ECS Node collect starting")
 	if e.ecsClient == nil {
 		log.WithFields(log.Fields{"package": "node-collector"}).Error("ECS client not configured.")
 		return
@@ -56,21 +75,31 @@ func (e *EcsNodeDTCollector) Collect(ch chan<- prometheus.Metric) {
 
 	nodeState := e.ecsClient.RetrieveNodeStateParallel()
 	for _, node := range nodeState {
-		// fmt.Printf("TotalDTNum: %v, UnreadyNum: %v, UnKnownNum: %v, NodeIP: %v\n", node.TotalDTnum, node.UnreadyDTnum, node.UnknownDTnum, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(dtTotal, prometheus.GaugeValue, node.TotalDTnum, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(dtUnready, prometheus.GaugeValue, node.UnreadyDTnum, node.NodeIP)
-		ch <- prometheus.MustNewConstMetric(dtUnknown, prometheus.GaugeValue, node.UnknownDTnum, node.NodeIP)
+		// Disk metrics
+		ch <- prometheus.MustNewConstMetric(numDisks, prometheus.GaugeValue, node.NumDisks, node.NodeIP)
+		ch <- prometheus.MustNewConstMetric(numGoodDisks, prometheus.GaugeValue, node.NumGoodDisks, node.NodeIP)
+		ch <- prometheus.MustNewConstMetric(numBadDisks, prometheus.GaugeValue, node.NumBadDisks, node.NodeIP)
+
+		// Storage metrics
+		ch <- prometheus.MustNewConstMetric(diskSpaceTotal, prometheus.GaugeValue, node.DiskSpaceTotal, node.NodeIP)
+		ch <- prometheus.MustNewConstMetric(diskSpaceFree, prometheus.GaugeValue, node.DiskSpaceFree, node.NodeIP)
+		ch <- prometheus.MustNewConstMetric(diskSpaceAllocated, prometheus.GaugeValue, node.DiskSpaceAllocated, node.NodeIP)
+
+		// Active connections
 		ch <- prometheus.MustNewConstMetric(activeConnections, prometheus.GaugeValue, node.ActiveConnections, node.NodeIP)
 	}
 
-	log.WithFields(log.Fields{"package": "node-collector"}).Debug("Nodestate exporter finished")
+	log.WithFields(log.Fields{"package": "node-collector"}).Debug("Node exporter finished")
 	log.WithFields(log.Fields{"package": "node-collector"}).Debug(nodeState)
 }
 
 // Describe describes the metrics exported from this collector.
 func (e *EcsNodeDTCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- dtTotal
-	ch <- dtUnready
-	ch <- dtUnknown
+	ch <- numDisks
+	ch <- numGoodDisks
+	ch <- numBadDisks
+	ch <- diskSpaceTotal
+	ch <- diskSpaceFree
+	ch <- diskSpaceAllocated
 	ch <- activeConnections
 }

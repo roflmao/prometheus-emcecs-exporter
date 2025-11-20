@@ -39,12 +39,23 @@ var (
 
 	spacetotal = prometheus.NewDesc(
 		prometheus.BuildFQName("emcecs", "cluster", "space_total"),
-		"Cluster size in Bytes",
+		"Cluster raw disk capacity in bytes (before EC/replication overhead)",
 		[]string{"vdc"}, nil,
 	)
 	spacefree = prometheus.NewDesc(
 		prometheus.BuildFQName("emcecs", "cluster", "space_free"),
-		"Cluster space free in Bytes",
+		"Cluster raw disk space free in bytes (before EC/replication overhead)",
+		[]string{"vdc"}, nil,
+	)
+
+	objectCapacityTotal = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "cluster", "object_capacity_total_bytes"),
+		"Usable object storage capacity in bytes (after EC/replication overhead)",
+		[]string{"vdc"}, nil,
+	)
+	objectCapacityFree = prometheus.NewDesc(
+		prometheus.BuildFQName("emcecs", "cluster", "object_capacity_free_bytes"),
+		"Free usable object storage capacity in bytes (after EC/replication overhead)",
 		[]string{"vdc"}, nil,
 	)
 
@@ -161,6 +172,12 @@ func (e *EcsClusterCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(baddisk, prometheus.GaugeValue, fields.NumBadDisks, fields.VdcName)
 	ch <- prometheus.MustNewConstMetric(spacefree, prometheus.GaugeValue, fields.DiskSpaceFree, fields.VdcName)
 	ch <- prometheus.MustNewConstMetric(spacetotal, prometheus.GaugeValue, fields.DiskSpaceTotal, fields.VdcName)
+
+	// Only export object capacity if it was successfully retrieved
+	if fields.ObjectCapacityTotal > 0 {
+		ch <- prometheus.MustNewConstMetric(objectCapacityTotal, prometheus.GaugeValue, fields.ObjectCapacityTotal, fields.VdcName)
+		ch <- prometheus.MustNewConstMetric(objectCapacityFree, prometheus.GaugeValue, fields.ObjectCapacityFree, fields.VdcName)
+	}
 	ch <- prometheus.MustNewConstMetric(transactionrlatency, prometheus.GaugeValue, fields.TransactionReadLatency, fields.VdcName)
 	ch <- prometheus.MustNewConstMetric(transactionwlatency, prometheus.GaugeValue, fields.TransactionWriteLatency, fields.VdcName)
 	ch <- prometheus.MustNewConstMetric(transactionreadpersecond, prometheus.GaugeValue, fields.TransactionReadTransactionsPerSecond, fields.VdcName)
@@ -194,6 +211,8 @@ func (e *EcsClusterCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- baddisk
 	ch <- spacefree
 	ch <- spacetotal
+	ch <- objectCapacityTotal
+	ch <- objectCapacityFree
 	ch <- transactionrlatency
 	ch <- transactionwlatency
 	ch <- transactionreadpersecond

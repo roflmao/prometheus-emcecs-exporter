@@ -1,2 +1,6 @@
 bin/prometheus-emcecs-exporter
 dist/*
+ECS_3.6_REST_API/
+ObjectScale_4.1_REST_API/
+metrics.dashboard-api.output
+metrics.output.example
