@@ -93,7 +93,39 @@ This exporter is used to monitor relatively small ECS clusters, you may find tha
 
 ## Exported Metrics
 
-This exporter exports information in two ways. The first is a standard export of performance and system health stats.  Additionally you can get an export of metering metrics (for now just quota usage/space usage). This is done by specifying an additional option "metering=1" on the query and you will get back a set of stats on namespace usage. This query can take a long time, and does not need to be done at quite as high a frequency as performance stats. It is suggested polling this on a 5 minute or higher frequency due to the rate of change being much lower in most cases.
+This exporter exports metrics in two different modes:
+
+### Standard Performance Metrics (Default)
+**URL**: `http://exporter:9438/query?target=<ecs-cluster-address>`
+
+Returns cluster-level and node-level performance metrics including:
+- Cluster health (alerts, node/disk status)
+- Storage capacity (raw and usable)
+- Transaction statistics (bandwidth, latency, throughput)
+- Replication status
+- Node-level disk and connection metrics
+
+**Scrape frequency**: Every 30-60 seconds recommended
+
+### Metering Metrics (Requires `metering=1` parameter)
+**URL**: `http://exporter:9438/query?target=<ecs-cluster-address>&metering=1`
+
+Returns namespace-level quota and usage metrics:
+- Namespace object counts
+- Namespace storage quota (block, notification, used)
+
+**Important**: The `metering=1` parameter **must** be added to the query URL to retrieve metering metrics. Without this parameter, only standard performance metrics are returned.
+
+**Scrape frequency**: Every 5+ minutes recommended (slower polling due to API performance impact)
+
+**Example queries**:
+```bash
+# Standard metrics only
+curl "http://localhost:9438/query?target=10.2.230.10"
+
+# Metering metrics only
+curl "http://localhost:9438/query?target=10.2.230.10&metering=1"
+```
 
 ### Dell EMC ECS Performance Stats
 
